@@ -1,5 +1,28 @@
 ### Change log
 -----------------------
+#### 44
+* GNOME 45+ ESM port (based on the ESM work by @marcelocampanelli, see
+  https://github.com/marcelocampanelli/gse-sound-output-device-chooser)
+  * Module layout rewritten for ESM: `Extension` / `ExtensionPreferences` base classes,
+    `gi://` imports, `resource:///org/gnome/shell/...` imports for the shell API
+  * Preferences dialog ported to libadwaita (`Adw.PreferencesPage` / `Adw.SwitchRow` / `Adw.ComboRow`)
+  * Quick Settings integration via `QuickMenuToggle` / `SystemIndicator`
+  * The original GNOME <= 43 sources are preserved in `legacy/`
+* GNOME 51 fixes
+  * Fix device enumeration: Gvc device ids are sparse and shared between input and output
+    devices. The old code derived the maximum id from a dummy `Gvc.MixerUIDevice` (always 1)
+    and enumerated `1..n`, which listed no device at all. The maximum id is now determined
+    from the actual mixer control and the whole range is scanned.
+  * `St.Widget.set_style()` is available on GNOME 51, so the existing style calls are kept
+    (verified at runtime against St 51).
+  * Fix extension logging: `log` is not defined in a GJS ESM module scope and `global` does
+    not exist there either. Logging now goes through `console.log`, which maps to the GLib
+    INFO level and is therefore visible without `G_MESSAGES_DEBUG=all` (unlike `console.debug`).
+  * Wait for the asynchronously created volume input indicator before overriding the input
+    slider visibility (bounded poll, 250 ms interval, max. 20 attempts)
+* Fork of [kgshank/gse-sound-output-device-chooser](https://github.com/kgshank/gse-sound-output-device-chooser)
+  (original author: GopI); upstream sources for GNOME <= 43 are kept in `legacy/`
+
 #### 35,36 & 37
 * V40 compatibility updates
 * Remove C pointer references

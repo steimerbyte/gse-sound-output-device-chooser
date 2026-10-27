@@ -3,20 +3,15 @@
  * Modified by Burak Sener
  */
 
-const { Settings, SettingsSchemaSource } = imports.gi.Gio;
-const { MixerSinkInput } = imports.gi.Gvc;
-const { Gio, GLib } = imports.gi;
-
-// https://gitlab.gnome.org/GNOME/gnome-shell/-/blob/main/js/ui/popupMenu.js
-const PopupMenu = imports.ui.popupMenu;
-// https://gitlab.gnome.org/GNOME/gnome-shell/-/blob/main/js/ui/status/volume.js
-const Volume = imports.ui.status.volume;
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const Lib = Me.imports.convenience;
-const Prefs = Me.imports.prefs;
-
-var VolumeMixerPopupMenuInstance = class VolumeMixerPopupMenuInstance extends PopupMenu.PopupMenuSection {
+import GLib from 'gi://GLib';
+import Gvc from 'gi://Gvc';
+import St from 'gi://St';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as Volume from 'resource:///org/gnome/shell/ui/status/volume.js';
+import {Slider} from 'resource:///org/gnome/shell/ui/slider.js';
+import * as Lib from './convenience.js';
+const {MixerSinkInput} = Gvc;
+export var VolumeMixerPopupMenuInstance = class VolumeMixerPopupMenuInstance extends PopupMenu.PopupMenuSection {
     constructor() {
         super();
         this._applicationStreams = {};
@@ -40,7 +35,7 @@ var VolumeMixerPopupMenuInstance = class VolumeMixerPopupMenuInstance extends Po
             return;
         }
         const stream = control.lookup_stream_id(id);
-        if (stream.is_event_stream || !(stream instanceof MixerSinkInput)) {
+        if (!stream || stream.is_event_stream || !(stream instanceof MixerSinkInput)) {
             return;
         }
 
@@ -55,7 +50,7 @@ var VolumeMixerPopupMenuInstance = class VolumeMixerPopupMenuInstance extends Po
 
         let currentSinkLabel = "Default Output";
         let [, siOut] = GLib.spawn_command_line_sync("pactl list short sink-inputs");
-        let siLines = imports.byteArray.toString(siOut).trim().split("\n");
+        let siLines = new TextDecoder().decode(siOut).trim().split("\n");
         for (let line of siLines) {
             let parts = line.split("\t");
             if (parts[0] === String(sinkInputId)) {
@@ -108,31 +103,33 @@ var VolumeMixerPopupMenuInstance = class VolumeMixerPopupMenuInstance extends Po
     }
 }
 
-const { BoxLayout, Label } = imports.gi.St;
-const Volume$1 = imports.ui.status.volume;
-class ApplicationStreamSlider extends Volume$1.StreamSlider {
+class ApplicationStreamSlider {
     constructor(stream) {
-        super(Volume$1.getMixerControl());
-
-        this.stream = stream;
-        this._icon.icon_name = stream.get_icon_name();
-
-        let name = stream.get_name();
-        let description = stream.get_description();
-        if (name || description) {
-            this._vbox = new BoxLayout();
-            this._vbox.vertical = true;
-
-            this._label = new Label();
-            this._label.text = name && `${name} - ${description}`;
-            this._vbox.add(this._label);
-
-            this.item.remove_child(this._slider);
-            this._vbox.add(this._slider);
-            this._slider.set_height(32);
-
-            this.item.actor.add(this._vbox);
-        }
-
+        this.item = new PopupMenu.PopupBaseMenuItem({activate: false});
+        this.item.add_child(new St.Icon({icon_name: stream.get_icon_name() || 'audio-x-generic-symbolic', style_class: 'popup-menu-icon'}));
+        const name = stream.get_name() || stream.get_description() || 'Audio';
+        this.item.add_child(new St.Label({text: name}));
+        const max = Volume.getMixerControl().get_vol_max_norm();
+        const slider = new Slider(stream.is_muted ? 0 : stream.volume / max);
+        slider.x_expand = true;
+        this.item.add_child(slider);
+        let syncing = false;
+        const sync = () => {
+            syncing = true;
+            slider.value = stream.is_muted ? 0 : stream.volume / max;
+            syncing = false;
+        };
+        const volumeId = stream.connect('notify::volume', sync);
+        const muteId = stream.connect('notify::is-muted', sync);
+        slider.connect('notify::value', () => {
+            if (syncing) return;
+            stream.volume = Math.round(slider.value * max);
+            stream.push_volume();
+            stream.change_is_muted(slider.value === 0);
+        });
+        this.item.connect('destroy', () => {
+            stream.disconnect(volumeId);
+            stream.disconnect(muteId);
+        });
     }
 }

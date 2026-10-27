@@ -16,27 +16,27 @@
  ******************************************************************************/
 /* jshint moz:true */
 
-const ByteArray = imports.byteArray;
-const { Gio, GLib } = imports.gi;
-const ExtensionUtils = imports.misc.extensionUtils;
-
-const Me = ExtensionUtils.getCurrentExtension();
-const Prefs = Me.imports.prefs;
-
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Prefs from './settings.js';
+const ByteArray = {toString: bytes => new TextDecoder().decode(bytes)};
+const extension = () => Extension.lookupByURL(import.meta.url);
 var DEBUG = false;
 
-var logWrap;
-if (log != undefined) {
-    logWrap = log;
-}
-else {
-    logWrap = global.log
-}
+// `log` is not guaranteed to exist in a GJS ESM module scope and `global`
+// is not defined there either, so use console directly (available in the
+// shell process and in plain gjs).
+// NOTE: console.log maps to GLib's INFO level; console.debug maps to DEBUG
+// level, which GNOME Shell 51 suppresses unless G_MESSAGES_DEBUG=all.
+// The extension's "enable-log" output must be visible to users, so use
+// console.log here.
+const logWrap = msg => console.log(msg);
 
 
 let cards;
 
-function getSinks() {
+export function getSinks() {
     // Try JSON output (PulseAudio >= 16.0) for friendly descriptions.
     // LC_NUMERIC=C is required: pactl's JSON uses the locale decimal separator
     // which makes it invalid JSON on non-English systems (e.g. "0,00" instead of "0.00").
@@ -45,7 +45,7 @@ function getSinks() {
     let [, out, , exit_code] = GLib.spawn_sync(null,
         ["pactl", "--format=json", "list", "sinks"],
         env, GLib.SpawnFlags.SEARCH_PATH, null);
-    let input = imports.byteArray.toString(out);
+    let input = ByteArray.toString(out);
     if (exit_code === 0) {
         try {
             return JSON.parse(input).map(sink => ({ id: String(sink.index), name: sink.description }));
@@ -54,28 +54,28 @@ function getSinks() {
         }
     }
     let [, out2] = GLib.spawn_command_line_sync("pactl list short sinks");
-    let input2 = imports.byteArray.toString(out2);
+    let input2 = ByteArray.toString(out2);
     return input2.trim().split("\n").filter(l => l).map(line => {
         let parts = line.split("\t");
         return { id: parts[0], name: parts[1] };
     });
 }
 
-function getCard(card_index) {
+export function getCard(card_index) {
     if (!cards || Object.keys(cards).length == 0) {
         refreshCards();
     }
     return cards[card_index];
 }
 
-function getCardByName(card_name) {
+export function getCardByName(card_name) {
     if (!cards || Object.keys(cards).length == 0) {
         refreshCards();
     }
     return Object.keys(cards).map((index) => cards[index]).find(({ name }) => name === card_name);
 }
 
-function getProfiles(control, uidevice) {
+export function getProfiles(control, uidevice) {
     let stream = control.lookup_stream_id(uidevice.get_stream_id());
     if (stream) {
         if (!cards || Object.keys(cards).length == 0 || !cards[stream.card_index]) {
@@ -104,14 +104,14 @@ function getProfiles(control, uidevice) {
 }
 
 let ports;
-function getPorts(refresh) {
+export function getPorts(refresh) {
     if (!ports || ports.length == 0 || refresh) {
         refreshCards();
     }
     return ports;
 }
 
-function isCmdFound(cmd) {
+export function isCmdFound(cmd) {
     try {
         let [result, out, err, exit_code] = GLib.spawn_command_line_sync(cmd);
         return true;
@@ -122,10 +122,10 @@ function isCmdFound(cmd) {
     }
 }
 
-function refreshCards() {
+export function refreshCards() {
     cards = {};
     ports = [];
-    let _settings = ExtensionUtils.getSettings();
+    let _settings = extension().getSettings();
     let error = false;
     let newProfLogic = _settings.get_boolean(Prefs.NEW_PROFILE_ID_DEPRECATED);
 
@@ -140,7 +140,7 @@ function refreshCards() {
 
     if (newProfLogic) {
         _log("New logic");
-        let pyLocation = Me.dir.get_child("utils/pa_helper.py").get_path();
+        let pyLocation = extension().dir.get_child("utils/pa_helper.py").get_path();
         let pythonExec = ["python", "python3", "python2"].find(cmd => isCmdFound(cmd));
         if (!pythonExec) {
             _log("ERROR: Python not found. fallback to default mode");
@@ -151,7 +151,7 @@ function refreshCards() {
         else {
             try {
                 _log("Python found." + pythonExec);
-                let [result, out, err, exit_code] = GLib.spawn_command_line_sync(pythonExec + " " + pyLocation);
+                let [result, out, err, exit_code] = GLib.spawn_sync(null, [pythonExec, pyLocation], null, GLib.SpawnFlags.SEARCH_PATH, null);
                 // _log("result" + result +" out"+out + " exit_code" +
                 // exit_code + "err" +err);
                 if (result && !exit_code) {
@@ -193,7 +193,7 @@ function refreshCards() {
     //_log(JSON.stringify(ports));
 }
 
-function parseOutput(out) {
+export function parseOutput(out) {
     let lines;
     if (out instanceof Uint8Array) {
         lines = ByteArray.toString(out).split("\n");
@@ -278,7 +278,7 @@ function parseOutput(out) {
     }
 }
 
-var Signal = class Signal {
+export var Signal = class Signal {
 
     constructor(signalSource, signalName, callback) {
         this._signalSource = signalSource;
@@ -298,7 +298,7 @@ var Signal = class Signal {
     }
 }
 
-var SignalManager = class SignalManager {
+export var SignalManager = class SignalManager {
     constructor() {
         this._signalsBySource = new Map();
     }
@@ -338,7 +338,7 @@ var SignalManager = class SignalManager {
 }
 
 
-function getProfilesForPort(portName, card) {
+export function getProfilesForPort(portName, card) {
     if (card.ports) {
         let port = card.ports.find(port => (portName === port.name));
         if (port) {
@@ -354,18 +354,18 @@ function getProfilesForPort(portName, card) {
     return null;
 }
 
-function setLog(value) {
+export function setLog(value) {
     DEBUG = value;
 }
 
-function _log(msg) {
+export function _log(msg) {
     if (DEBUG == true) {
         // global.log("SDC Debug: " + msg);
         logWrap("SDC Debug: " + msg);
     }
 }
 
-function dump(obj) {
+export function dump(obj) {
     var propValue;
     for (var propName in obj) {
         try {
@@ -376,7 +376,7 @@ function dump(obj) {
     }
 }
 
-function getActor(item) {
+export function getActor(item) {
     //.actor is needed for backward compatablity
     return (item.actor) ? item.actor : item;
 }

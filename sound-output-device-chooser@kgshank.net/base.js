@@ -16,33 +16,23 @@
  ******************************************************************************/
 /* jshint moz:true */
 
-const { GObject, GLib, Gvc } = imports.gi;
-
-const Signals = imports.signals;
-
-const PopupMenu = imports.ui.popupMenu;
-const VolumeMenu = imports.ui.status.volume;
-const Main = imports.ui.main;
-const MessageTray = imports.ui.messageTray;
-
-const Config = imports.misc.config;
-const ExtensionUtils = imports.misc.extensionUtils;
-const Gettext = imports.gettext;
-
-const Me = ExtensionUtils.getCurrentExtension();
-const Lib = Me.imports.convenience;
-const Prefs = Me.imports.prefs;
-
-ExtensionUtils.initTranslations(Me.metadata["gettext-domain"]);
-const Domain = Gettext.domain(Me.metadata["gettext-domain"]);
-const _ = Domain.gettext;
-//const _ = Gettext.gettext;
+import GObject from 'gi://GObject';
+import GLib from 'gi://GLib';
+import Gvc from 'gi://Gvc';
+import {EventEmitter} from 'resource:///org/gnome/shell/misc/signals.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as VolumeMenu from 'resource:///org/gnome/shell/ui/status/volume.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Lib from './convenience.js';
+import * as Prefs from './settings.js';
+const extension = () => Extension.lookupByURL(import.meta.url);
 const _d = Lib._log;
 const getActor = Lib.getActor;
 
 const DISPLAY_OPTIONS = Prefs.DISPLAY_OPTIONS;
 const SignalManager = Lib.SignalManager;
-const isShellAbove34 = (parseFloat(Config.PACKAGE_VERSION) >= 3.34);
+const isShellAbove34 = true;
 
 var ProfileMenuItem40 = class 
     extends PopupMenu.PopupMenuItem {
@@ -56,7 +46,7 @@ var ProfileMenuItem40 = class
     
     _initialise(profileName) {
 		this.profileName = profileName;
-        this._ornamentLabel.set_style("min-width: 3em;margin-left: 3em;");
+        (this._ornamentLabel ?? this._ornamentIcon).set_style("min-width: 3em;margin-left: 3em;");
         this.setProfileActive(false);
 	}
 
@@ -64,7 +54,7 @@ var ProfileMenuItem40 = class
         if (active) {
             this.setOrnament(PopupMenu.Ornament.DOT);
             // this._ornamentLabel.text = "\u2727";
-            this._ornamentLabel.text = "\u266A";
+            if (this._ornamentLabel) this._ornamentLabel.text = "\u266A";
             if (this.add_style_pseudo_class) {
                 this.remove_style_pseudo_class('insensitive');
             }
@@ -181,7 +171,7 @@ var SoundDeviceMenuItem40 = class extends PopupMenu.PopupImageMenuItem {
         }
         else {
             this.setOrnament(PopupMenu.Ornament.CHECK);
-            this._ornamentLabel.text = '\u266B';
+            if (this._ornamentLabel) this._ornamentLabel.text = '\u266B';
         }
     }
 
@@ -217,10 +207,10 @@ var ProfileMenuItem;
 if (isShellAbove34) {
 	SoundDeviceMenuItem = SoundDeviceMenuItem40;
 	ProfileMenuItem = ProfileMenuItem40;
-    ProfileMenuItem = GObject.registerClass({ GTypeName: 'ProfileMenuItem' }, ProfileMenuItem);
+    ProfileMenuItem = GObject.registerClass({ GTypeName: 'SDCProfileMenuItem' }, ProfileMenuItem);
 
     SoundDeviceMenuItem = GObject.registerClass({
-        GTypeName: "SoundDeviceMenuItem",
+        GTypeName: "SDCSoundDeviceMenuItem",
         Signals: {
             "device-activated": {
                 param_types: [GObject.TYPE_INT]
@@ -237,14 +227,15 @@ else
 	ProfileMenuItem = ProfileMenuItem32;
 }
 
-var SoundDeviceChooserBase = class SoundDeviceChooserBase {
+export var SoundDeviceChooserBase = class SoundDeviceChooserBase extends EventEmitter {
     constructor(deviceType) {
+        super();
         _d("SDC: init");
         this.menuItem = new PopupMenu.PopupSubMenuMenuItem(_("Extension initialising..."), true);
         this.deviceType = deviceType;
         this._devices = new Map();
         let _control = this._getMixerControl();
-        this._settings = ExtensionUtils.getSettings();
+        this._settings = extension().getSettings();
         _d("Constructor:" + deviceType);
 
         this._setLog();
@@ -294,14 +285,22 @@ var SoundDeviceChooserBase = class SoundDeviceChooserBase {
              * from from 1 to n
              */
 
-            let id = 0;
-
-            let dummyDevice = new Gvc.MixerUIDevice();
-            let maxId = dummyDevice.get_id();
+            // The UI device ids are NOT contiguous: Gvc assigns them from a
+            // single global counter shared by output and input devices, so
+            // there are gaps. Enumerating "1..n" with a dummy MixerUIDevice
+            // (whose id is always 1) yields nothing at all.
+            // Instead find the highest id present in either direction and
+            // scan the whole range; lookupDeviceById() filters out the ids
+            // that belong to the other direction (returns null -> invalid).
+            let maxId = 0;
+            for (let id = 1; id < 4096; id++) {
+                if (control.lookup_output_id(id) || control.lookup_input_id(id))
+                    maxId = id;
+            }
 
             _d("Max Id:" + maxId);
 
-            while (++id < maxId) {
+            for (let id = 1; id <= maxId; id++) {
                 this._deviceAdded(control, id);
             }
             let defaultStream = this.getDefaultStream(control);
@@ -473,7 +472,7 @@ var SoundDeviceChooserBase = class SoundDeviceChooserBase {
                 }
 
                 if (device) {
-                    _notify(Me.metadata["name"] + " " + _("Extension changed active sound device."),
+                    _notify(extension().metadata["name"] + " " + _("Extension changed active sound device."),
                         _("Activated device is hidden in Port Settings.") + " \n" +
                         _("Deactivated Device: ") + obj.title + " \n" + _("Activated Device: ") + device.title + " \n"
                         + _("Disable in extension preferences to avoid this behaviour."),
@@ -659,7 +658,7 @@ var SoundDeviceChooserBase = class SoundDeviceChooserBase {
         // These indicate the active device, which is displayed directly in the
         // Gnome menu, not in the list.
         if (!this._settings.get_boolean(Prefs.HIDE_MENU_ICONS)) {
-            this.menuItem.icon.icon_name = this._getIcon(this._devices.get(this._activeDeviceId).icon_name);
+            this.menuItem.icon.icon_name = this._getIcon(this._devices.get(this._activeDeviceId)?.icon_name);
         } else {
             this.menuItem.icon.icon_name = null;
         }
@@ -758,7 +757,7 @@ var SoundDeviceChooserBase = class SoundDeviceChooserBase {
         });
 
         let activeDevice = this._devices.get(this._activeDeviceId);
-        this.menuItem.label.text = activeDevice.title;
+        if (activeDevice) this.menuItem.label.text = activeDevice.title;
     }
 
     _getDeviceTitle(uidevice) {
@@ -784,12 +783,8 @@ var SoundDeviceChooserBase = class SoundDeviceChooserBase {
 
 };
 
-Signals.addSignalMethods(SoundDeviceChooserBase.prototype);
 
-function _notify(msg, details, icon_name) {
-    let source = new MessageTray.Source(Me.metadata["name"], icon_name);
-    Main.messageTray.add(source);
-    let notification = new MessageTray.Notification(source, msg, details);
-    //notification.setTransient(true);
-    source.showNotification(notification);
+
+function _notify(msg, details, _iconName) {
+    Main.notify(msg, details);
 }
