@@ -5,3 +5,5 @@ __pycache__/
 *.*~
 dist/
 .research/
+*.shell-extension.zip
+sound-output-device-chooser@kgshank.net/po/

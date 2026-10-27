@@ -1,6 +1,9 @@
 ### Change log
 -----------------------
 #### 44
+* Official installation route: `make bundle` builds an extension bundle with
+  `gnome-extensions pack` (`sound-output-device-chooser.shell-extension.zip`), which is installed
+  with `gnome-extensions install`. `make install-bundle` does both in one step.
 * GNOME 45+ ESM port (based on the ESM work by @marcelocampanelli, see
   https://github.com/marcelocampanelli/gse-sound-output-device-chooser)
   * Module layout rewritten for ESM: `Extension` / `ExtensionPreferences` base classes,

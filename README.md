@@ -28,7 +28,44 @@ The GNOME 45+ port is an ESM rewrite; the original GNOME <= 43 sources are prese
 * Python 3 is optional and only used for audio port identification (new profile identification).
   Turn off "new profile identification" in the preferences if Python is to be avoided.
 
-### Installation instructions
+### Official installation
+
+The recommended way to install this fork is the official GNOME route: build an extension
+bundle with `gnome-extensions pack` and install it with `gnome-extensions install`.
+
+```bash
+cd ~/workspace/gse-sound-output-device-chooser
+make bundle
+gnome-extensions install sound-output-device-chooser.shell-extension.zip
+```
+
+`make bundle` runs `gnome-extensions pack` on the extension directory and produces
+`sound-output-device-chooser.shell-extension.zip` in the repository root. `gnome-extensions install`
+unpacks that bundle into `~/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net`,
+compiles the GSettings schema and installs the translations.
+
+**The extension becomes active at the next session start.** That is the documented behaviour of
+`gnome-extensions install`: on GNOME 45+ the running shell only loads extensions that were already
+known when the session started, so a freshly installed extension is picked up after the next login
+(not by the running shell).
+
+If the extension is not enabled automatically, enable it once:
+
+```bash
+gnome-extensions enable sound-output-device-chooser@kgshank.net
+```
+
+To open the preferences (sound device selection, mixer, shortcuts):
+
+```bash
+gnome-extensions prefs sound-output-device-chooser@kgshank.net
+```
+
+`make install-bundle` does both steps in one go (build the bundle, then install it).
+If you need the extension active in the *running* shell without waiting for a session start,
+see [docs/LIVE-ACTIVATION.md](docs/LIVE-ACTIVATION.md).
+
+### Installation from source (alternative)
 
 The official upstream release is on [extensions.gnome.org](https://extensions.gnome.org/extension/906/sound-output-device-chooser).
 
