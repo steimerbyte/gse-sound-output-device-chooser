@@ -1,6 +1,6 @@
 # Live activation without restarting GNOME Shell
 
-Validated on GNOME Shell 51.1 (Wayland). GNOME 45+ builds the extension registry only at shell startup, so a newly installed extension directory is invisible to the running shell until the next session start. This document describes the supported workaround: register, load and enable the extension in the running shell over D-Bus, after enabling mutter's unsafe mode once in Looking Glass.
+Validated on GNOME Shell 51.1 and 50.1 (Wayland). GNOME 45+ builds the extension registry only at shell startup, so a newly installed extension directory is invisible to the running shell until the next session start. This document describes the supported workaround: register, load and enable the extension in the running shell over D-Bus, after enabling mutter's unsafe mode once in Looking Glass.
 
 See [CHANGELOG.md](../CHANGELOG.md) for the porting changes.
 
@@ -8,16 +8,18 @@ See [CHANGELOG.md](../CHANGELOG.md) for the porting changes.
 
 # LIVE RECIPE — make `sound-output-device-chooser@kgshank.net` live in the RUNNING GNOME Shell 51.1
 
-**Target:** live shell PID 2983, GNOME Shell 51.1, Wayland session.
+**Target:** a live GNOME Shell 50/51 session (Wayland).
 **Goal:** register + load + enable the extension in the RUNNING shell without restarting it.
 **Validated** in a fully isolated GNOME Shell 51.1 (`--headless --unsafe-mode`, own D-Bus, own XDG dirs).
-No command in section 3–5 has been executed against the live bus.
+No command in section 3–5 has been executed against the live bus. On GNOME Shell 50.1 the normal
+route is verified instead (install the bundle, then start a new session): the extension reaches
+`ACTIVE` with no errors. The `Eval` recipe below therefore remains proven on 51.1 only.
 
 ---
 
 ## 0. Background
 
-GNOME 51.1's `ExtensionManager` fills its registry exactly once, at startup
+GNOME 45+ (50.1 included): `ExtensionManager` fills its registry exactly once, at startup
 (`js/ui/extensionSystem.js` → `_loadExtensions()`, guarded by `_initializationPromise`).
 A brand-new extension directory that appears afterwards is invisible to the running shell:
 
@@ -97,7 +99,7 @@ gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
   --method org.gnome.Shell.Eval \
 "(async () => {
   const uuid = 'sound-output-device-chooser@kgshank.net';
-  const dir = '/home/steimer/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net';
+  const dir = '$HOME/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net';
   const em = Main.extensionManager;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   for (let i = 0; i < 100 && !em._enabledExtensions.includes(uuid); i++) await sleep(50);
@@ -118,7 +120,7 @@ gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
 ### Single-line variant (identical, easier to paste)
 
 ```bash
-gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval "(async () => { const uuid = 'sound-output-device-chooser@kgshank.net'; const dir = '/home/steimer/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net'; const em = Main.extensionManager; const sleep = ms => new Promise(r => setTimeout(r, ms)); for (let i = 0; i < 100 && !em._enabledExtensions.includes(uuid); i++) await sleep(50); const ext = em.createExtensionObject(uuid, Gio.File.new_for_path(dir), ExtensionUtils.ExtensionType.PER_USER); await em.loadExtension(ext); em.enableExtension(uuid); for (let i = 0; i < 100; i++) { const e = em.lookup(uuid); if (e && e.state === 1) return 'ACTIVE'; await sleep(50); } return 'FAILED state=' + (em.lookup(uuid)?.state); })()"
+gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval "(async () => { const uuid = 'sound-output-device-chooser@kgshank.net'; const dir = '$HOME/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net'; const em = Main.extensionManager; const sleep = ms => new Promise(r => setTimeout(r, ms)); for (let i = 0; i < 100 && !em._enabledExtensions.includes(uuid); i++) await sleep(50); const ext = em.createExtensionObject(uuid, Gio.File.new_for_path(dir), ExtensionUtils.ExtensionType.PER_USER); await em.loadExtension(ext); em.enableExtension(uuid); for (let i = 0; i < 100; i++) { const e = em.lookup(uuid); if (e && e.state === 1) return 'ACTIVE'; await sleep(50); } return 'FAILED state=' + (em.lookup(uuid)?.state); })()"
 ```
 
 ---
@@ -150,7 +152,7 @@ directory paths** in one shell. Importing the module twice re-runs
 `GObject.registerClass({GTypeName: 'SDCProfileMenuItem'}, …)` in `base.js`, which throws
 `Error: Type name SDCProfileMenuItem is already registered` and leaves the extension in
 state `ERROR` (3). The recipe uses exactly one path:
-`/home/steimer/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net`.
+`$HOME/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net`.
 
 ---
 
@@ -163,7 +165,7 @@ gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
 ```
 
 Expected: `state` → `<1.0>`, `enabled` → `<true>`, `error` → `''`,
-`path` → `'/home/steimer/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net'`.
+`path` → `'$HOME/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net'`.
 
 ```bash
 gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
@@ -183,8 +185,8 @@ Expected:
 sound-output-device-chooser@kgshank.net
   Name: Sound Input & Output Device Chooser
   …
-  Path: /home/steimer/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net
-  Version: 44
+  Path: $HOME/.local/share/gnome-shell/extensions/sound-output-device-chooser@kgshank.net
+  Version: 45
   Enabled: Yes
   State: ACTIVE
 ```

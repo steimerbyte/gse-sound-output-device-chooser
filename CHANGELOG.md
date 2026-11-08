@@ -1,5 +1,18 @@
 ### Change log
 -----------------------
+#### 45 (2026-11-08)
+* GNOME 50 compatibility: `QuickSettings.addExternalIndicator()` only exists on GNOME 51+, so on
+  GNOME 50 the indicator and its quick settings items are inserted by hand in `extension.js`
+  (`_registerIndicator()`), mirroring `ui/panel.js`. Without this the extension aborted with
+  "addExternalIndicator is not a function" on GNOME 50, although `metadata.json` listed 50 as
+  supported.
+* `pactl` is optional now: `getSinks()` returns an empty list instead of throwing when `pactl` is
+  not installed, and the per-application routing submenu is skipped. Previously a missing
+  `pactl` (default on PipeWire setups without `pulseaudio-utils`) failed the whole `enable()`.
+* Dropped the fixed `GTypeName`s of the device and profile menu items; re-enabling the extension
+  in a running shell aborted with "type name is already registered" (documented in
+  [docs/LIVE-ACTIVATION.md](docs/LIVE-ACTIVATION.md) as a pitfall, it is now simply impossible).
+
 #### 44
 * Official installation route: `make bundle` builds an extension bundle with
   `gnome-extensions pack` (`sound-output-device-chooser.shell-extension.zip`), which is installed

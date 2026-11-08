@@ -37,14 +37,15 @@ const logWrap = msg => console.log(msg);
 let cards;
 
 export function getSinks() {
-    // Try JSON output (PulseAudio >= 16.0) for friendly descriptions.
-    // LC_NUMERIC=C is required: pactl's JSON uses the locale decimal separator
-    // which makes it invalid JSON on non-English systems (e.g. "0,00" instead of "0.00").
+    // pactl comes from pulseaudio-utils and is optional: without it the per-application
+    // mixer has nothing to route to, but the device chooser must still work.
     let env = GLib.get_environ();
     env = GLib.environ_setenv(env, "LC_NUMERIC", "C", true);
-    let [, out, , exit_code] = GLib.spawn_sync(null,
+    let [ok, out, , exit_code] = GLib.spawn_sync(null,
         ["pactl", "--format=json", "list", "sinks"],
         env, GLib.SpawnFlags.SEARCH_PATH, null);
+    if (!ok || !out)
+        return [];
     let input = ByteArray.toString(out);
     if (exit_code === 0) {
         try {
@@ -54,6 +55,8 @@ export function getSinks() {
         }
     }
     let [, out2] = GLib.spawn_command_line_sync("pactl list short sinks");
+    if (!out2)
+        return [];
     let input2 = ByteArray.toString(out2);
     return input2.trim().split("\n").filter(l => l).map(line => {
         let parts = line.split("\t");

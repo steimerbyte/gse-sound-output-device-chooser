@@ -40,7 +40,7 @@ export default class SoundDeviceChooserExtension extends Extension {
         this._indicator = new SystemIndicator();
         this._toggle = new ChooserToggle();
         this._indicator.quickSettingsItems.push(this._toggle);
-        Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
+        this._registerIndicator();
         for (const type of ['output', 'input']) {
             const chooser = new DeviceChooser(type);
             this._choosers.push(chooser);
@@ -56,6 +56,22 @@ export default class SoundDeviceChooserExtension extends Extension {
         this._updateMixer();
         if (!this._installInputSliderOverride())
             this._startInputSliderPoll();
+    }
+
+    /**
+     * QuickSettings.addExternalIndicator() only exists on GNOME 51+; on GNOME 50 the
+     * indicators and the menu items have to be inserted by hand, the same way the
+     * shell does it for its own indicators in ui/panel.js.
+     */
+    _registerIndicator() {
+        const quickSettings = Main.panel.statusArea.quickSettings;
+        if (quickSettings.addExternalIndicator) {
+            quickSettings.addExternalIndicator(this._indicator, 1);
+            return;
+        }
+        quickSettings._indicators.insert_child_below(this._indicator, quickSettings._brightness ?? null);
+        const sibling = quickSettings._backgroundApps?.quickSettingsItems?.at(-1) ?? null;
+        quickSettings._addItemsBefore(this._indicator.quickSettingsItems, sibling, 1);
     }
 
     /**

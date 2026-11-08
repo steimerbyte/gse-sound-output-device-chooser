@@ -23,10 +23,15 @@ Upstream author: GopI (kgshank).
 The GNOME 45+ port is an ESM rewrite; the original GNOME <= 43 sources are preserved in
 [`legacy/`](legacy/) for reference.
 
+GNOME 50.1 is verified on Ubuntu 26.04 (Wayland, PipeWire 1.6): the extension reaches state
+`ACTIVE` without errors and registers its "Sound Devices" row in the Quick Settings menu.
+
 ### Dependencies
-* `pactl` (PulseAudio) is required for the per-application volume mixer.
 * Python 3 is optional and only used for audio port identification (new profile identification).
   Turn off "new profile identification" in the preferences if Python is to be avoided.
+* `pactl` (from `pulseaudio-utils`) is optional and only used for the per-application volume
+  mixer's "route this stream to sink" submenu. Without `pactl` that submenu is skipped; the
+  device chooser itself works without it because it uses Gvc, not PulseAudio.
 
 ### Official installation
 
@@ -67,7 +72,11 @@ see [docs/LIVE-ACTIVATION.md](docs/LIVE-ACTIVATION.md).
 
 ### Installation from source (alternative)
 
-The official upstream release is on [extensions.gnome.org](https://extensions.gnome.org/extension/906/sound-output-device-chooser).
+The original upstream project
+([kgshank/gse-sound-output-device-chooser](https://github.com/kgshank/gse-sound-output-device-chooser),
+also on [extensions.gnome.org](https://extensions.gnome.org/extension/906/sound-output-device-chooser))
+is unmaintained: its last release is for GNOME Shell 43 and does not load on GNOME 45+ because it
+still uses the legacy `imports.gi` module system. Install this fork instead.
 
 To install from source (user installation):
 
@@ -100,5 +109,17 @@ gnome-extensions enable sound-output-device-chooser@kgshank.net
 * May conflict with extensions which modify the volume menu.
 * The extension's own log output (enabled via the "enable log" preference) is written with
   `console.log`, which is visible at the default GNOME Shell log level.
+
+### License
+GPL-3.0-or-later, see [LICENSE](LICENSE). This fork is distributed under the same license as the
+original work; the copyright and author headers of the sources are unchanged.
+
+Third-party code:
+* `sound-output-device-chooser@kgshank.net/volumeMixerPopupMenu.js` originates from
+  [mymindstorm/gnome-volume-mixer](https://github.com/mymindstorm/gnome-volume-mixer),
+  Copyright (c) Brendan Early, MIT licensed, and is integrated under GPL-3.0-or-later.
+* The GNOME 45+ ESM rewrite is based on
+  [marcelocampanelli/gse-sound-output-device-chooser](https://github.com/marcelocampanelli/gse-sound-output-device-chooser),
+  GPL-3.0.
 
 ### [Change log](CHANGELOG.md)

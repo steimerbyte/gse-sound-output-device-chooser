@@ -207,10 +207,11 @@ var ProfileMenuItem;
 if (isShellAbove34) {
 	SoundDeviceMenuItem = SoundDeviceMenuItem40;
 	ProfileMenuItem = ProfileMenuItem40;
-    ProfileMenuItem = GObject.registerClass({ GTypeName: 'SDCProfileMenuItem' }, ProfileMenuItem);
+    // No fixed GTypeName: re-enabling the extension in a running shell would
+    // otherwise abort with "type name is already registered".
+    ProfileMenuItem = GObject.registerClass({}, ProfileMenuItem);
 
     SoundDeviceMenuItem = GObject.registerClass({
-        GTypeName: "SDCSoundDeviceMenuItem",
         Signals: {
             "device-activated": {
                 param_types: [GObject.TYPE_INT]

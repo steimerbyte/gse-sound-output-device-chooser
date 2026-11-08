@@ -1,5 +1,5 @@
 {
-  "description": "Select sound input and output devices and audio profiles from Quick Settings. Includes keyboard shortcuts and an optional per-application volume mixer. Python 3 is optional for audio port identification; pactl is required for application routing.",
+  "description": "Select sound input and output devices and audio profiles from Quick Settings. Includes keyboard shortcuts and an optional per-application volume mixer. Python 3 and pactl are optional and only affect port identification and per-application routing.",
   "name": "Sound Input & Output Device Chooser",
   "original-author": "GopI",
   "settings-schema": "org.gnome.shell.extensions.sound-output-device-chooser",
@@ -13,7 +13,7 @@
     "50",
     "51"
   ],
-  "url": "https://github.com/steimerbyte/gse-sound-output-device-chooser",
+  "url": "https://github.com/erker/gse-sound-output-device-chooser",
   "uuid": "sound-output-device-chooser@kgshank.net",
-  "version": 44
+  "version": 45
 }

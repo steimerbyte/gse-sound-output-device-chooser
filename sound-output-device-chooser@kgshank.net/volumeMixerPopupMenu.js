@@ -47,10 +47,12 @@ export var VolumeMixerPopupMenuInstance = class VolumeMixerPopupMenuInstance ext
 
 
         let sinks = Lib.getSinks();
+        if (!sinks.length)
+            return; // no pactl -> nothing to route applications to
 
         let currentSinkLabel = "Default Output";
         let [, siOut] = GLib.spawn_command_line_sync("pactl list short sink-inputs");
-        let siLines = new TextDecoder().decode(siOut).trim().split("\n");
+        let siLines = (siOut ? new TextDecoder().decode(siOut) : "").trim().split("\n");
         for (let line of siLines) {
             let parts = line.split("\t");
             if (parts[0] === String(sinkInputId)) {
@@ -79,7 +81,7 @@ export var VolumeMixerPopupMenuInstance = class VolumeMixerPopupMenuInstance ext
         if (id in this._applicationStreams) {
             this._applicationStreams[id].item.destroy();
             delete this._applicationStreams[id];
-            this._subMenus[id].destroy();
+            this._subMenus[id]?.destroy();
             delete this._subMenus[id];
         }        
     }
@@ -88,7 +90,7 @@ export var VolumeMixerPopupMenuInstance = class VolumeMixerPopupMenuInstance ext
         for (const id in this._applicationStreams) {
             this._applicationStreams[id].item.destroy();
             delete this._applicationStreams[id];
-            this._subMenus[id].destroy();
+            this._subMenus[id]?.destroy();
             delete this._subMenus[id];
         }       
         for (const stream of this._control.get_streams()) {
